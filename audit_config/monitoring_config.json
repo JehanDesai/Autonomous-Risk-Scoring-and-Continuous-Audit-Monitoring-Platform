@@ -1,0 +1,60 @@
+{
+  "schedule": {
+    "type": "Continuous",
+    "interval_minutes": 15,
+    "time_of_day": null,
+    "day_of_week": null,
+    "day_of_month": null
+  },
+  "triggers": {
+    "risk_score": {
+      "enabled": true,
+      "threshold": 80
+    },
+    "amount": {
+      "enabled": true,
+      "threshold": 10000.0
+    },
+    "velocity": {
+      "enabled": true,
+      "threshold": 100
+    },
+    "patterns": {
+      "enabled": true,
+      "selected_patterns": [
+        "Round Numbers",
+        "Split Transactions"
+      ]
+    }
+  },
+  "notifications": {
+    "channels": [
+      "Email",
+      "Dashboard"
+    ],
+    "email": {
+      "recipients": [
+        "auditor@company.com",
+        "finance@company.com"
+      ],
+      "subject": "Audit Alert: Suspicious Transaction Detected"
+    },
+    "sms": {
+      "phone_numbers": []
+    },
+    "webhook": {
+      "url": "",
+      "auth": ""
+    }
+  },
+  "advanced": {
+    "log_level": "INFO",
+    "retention_days": 90,
+    "max_alerts": 20,
+    "cooldown_period": 15,
+    "custom_rules": [
+      "transaction['amount'] > 9000 and transaction['amount'] < 10000",
+      "transaction['department'] == 'IT' and transaction['amount'] > 5000"
+    ]
+  }
+}

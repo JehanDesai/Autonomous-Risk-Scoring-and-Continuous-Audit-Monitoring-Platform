@@ -1,247 +1,284 @@
 import pandas as pd
 import numpy as np
-import datetime
-import schedule
-import time
-import threading
-import streamlit as st
 from datetime import datetime, timedelta
+import time
+import os
+import schedule
+import threading
+from typing import Dict, List, Optional, Union, Tuple
+from pathlib import Path
+import streamlit as st
 
 class AuditAgent:
-    def __init__(self, model, llm_integration, risk_threshold=0.7, feature_cols=None): # Add feature_cols as a parameter
-        """
-        Initialize the Audit Agent.
-        
-        Parameters:
-        model: The trained anomaly detection model.
-        llm_integration: The LLM integration for narrative insights.
-        risk_threshold: The threshold for flagging transactions as high risk.
-        feature_cols: The list of features used for model training.
-        """
-        self.model = model
-        self.llm_integration = llm_integration
-        self.risk_threshold = risk_threshold
-        self.feature_cols = feature_cols or []  # Initialize as an empty list if not provided
-        self.flagged_transactions = pd.DataFrame()
-        self.reports = []  # Initialize reports list here
-        self.is_running = False
-        
-    def evaluate_transaction(self, transaction):
-        """
-        Evaluate a single transaction and assign a risk score
-        """
-        # Extract features for the model
-        transaction_features = self.get_transaction_features(transaction)  # Define this helper function
-
-        # Make prediction
-        # Assuming IsolationForest model, using decision_function to get anomaly score
-        score = self.model.decision_function([transaction_features])[0] 
-
-        # Create result with risk score
-        result = transaction.to_dict()
-        result['risk_score'] = float(score)
-        result['is_flagged'] = score >= self.risk_threshold
-
-        if result['is_flagged']:
-            # Add flagged transactions to a list
-            self.flagged_transactions = pd.concat([self.flagged_transactions, pd.DataFrame([result])], ignore_index=True)
-
-        return result
+    # Autonomous agent for continuous monitoring of financial transactions.
+    # Integrates data connector, risk scoring model, and report generation.
     
-    def evaluate_batch(self, transactions_df):
-        """
-        Evaluate a batch of transactions and assign risk scores.
+    def __init__(self, data_connector, risk_model, report_generator, config: Dict = None):
+        self.data_connector = data_connector
+        self.risk_model = risk_model
+        self.report_generator = report_generator
+        self.config = config or {}
+        self.data_dir = Path("audit_data")
+        self.data_dir.mkdir(exist_ok=True)
+        self.processed_data = None
+        self.schedule_thread = None
+        self.running = False
+        # self.report_dir = Path()
+        # self.report_dir.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
+    
+    def get_monitoring_status(self):
+        """Return the current monitoring status."""
+        return self.running
+
+    def set_monitoring_config(self, config):
+        """Update the monitoring configuration."""
+        self.config.update(config)
+        return True
+
+    def get_departments(self):
+        """Get list of available departments from the data.
+        This needs to be added since it's called in the dashboard."""
+        if self.processed_data is not None and 'department' in self.processed_data.columns:
+            return self.processed_data['department'].unique().tolist()
+        return ["Sales", "Marketing", "Finance", "IT", "HR"]  # Default departments if no data
+
+    def process_transactions(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None, save_data: bool = True) -> pd.DataFrame:
+        # Process transactions from the data source and assign risk scores.
         
-        Args:
-            transactions_df: DataFrame of transactions
+        if "processed_data" in st.session_state and st.session_state["processed_data"] is not None:
+            print("Using cached processed data from session state.")
+            return st.session_state["processed_data"]
+    
+        # Extract transactions
+        transactions = self.data_connector.extract_transactions(
+            start_date=start_date, 
+            end_date=end_date,
+            limit=self.config.get('transaction_limit', 10000)
+        )
+
+        model_path = self.data_dir / "risk_model.joblib"
+        if model_path.exists():
+            print("Loading existing risk model...")
+            self.risk_model.load_model(str(model_path))
+
+        # If the model is not yet trained we train it
+        if not hasattr(self.risk_model, 'model') or self.risk_model.model is None:
+            print("Training risk model...")
+            self.risk_model.train(transactions)
             
-        Returns:
-            DataFrame with original transactions and added risk scores
-        """
-        results = []
-        for _, transaction in transactions_df.iterrows():
-            results.append(self.evaluate_transaction(transaction))
+            # Save the trained model
+            if self.config.get('save_model', True):
+                model_path = self.data_dir / "risk_model.joblib"
+                self.risk_model.save_model(str(model_path))
+                print(f"Risk model saved to {model_path}")
         
-        return pd.DataFrame(results)
+        # Assign risk scores
+        scored_transactions = self.risk_model.predict_risk_scores(transactions)
         
-    def get_transaction_features(self, transaction):
-        """
-        Extract features from a transaction for model prediction.
-        """
-        # Select only the features used during training
-        features = transaction[self.feature_cols]
-        return features.values  # Return as a NumPy array for model input
+        # Save processed data if requested
+        if save_data:
+            data_path = self.data_dir / "processed_transactions_latest.pkl"
+            scored_transactions.to_pickle(data_path)
+            if not data_path.exists():
+                print(f"Error: Processed data file was not saved properly at {data_path}")
+            print(f"Processed transactions saved to {data_path}")
+        
+        self.processed_data = scored_transactions
+        st.session_state["audit_config"] = {
+            "start_date": start_date,
+            "end_date": end_date,
+            "rules": self.config.get('audit_rules', {})
+        }
+        return scored_transactions
     
+    def generate_report(self, data: Optional[pd.DataFrame] = None, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> str:
+        #Generate an audit report.
+        if data is None:
+            if self.processed_data is None:
+                raise ValueError("No data available. Process transactions first.")
+            data = self.processed_data
+        
+        # Generate HTML report
+        # report_path = self.report_generator.generate_html_report(data=data, start_date=start_date, end_date=end_date)
+        # Fixed report path for consistency
+        report_path = self.data_dir / "latest_audit_report.json"
 
-    def _prepare_features(self, transaction):
-        """
-        Extract and prepare features for model prediction.
+        # Save the data in JSON format for consistency
+        data.to_json(report_path, orient="records", date_format="iso")
+
+        print(f"Audit report generated: {report_path}")
+        return report_path
+    
+    def _weekly_audit(self):
+        # Perform weekly audit tasks
+        print(f"Starting weekly audit at {datetime.now()}")
         
-        Args:
-            transaction: Transaction data
+        # Calculate date range for the past week
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=7)
+        
+        try:
+            # Process transactions
+            transactions = self.process_transactions(
+                start_date=start_date,
+                end_date=end_date,
+                save_data=True
+            )
             
-        Returns:
-            Features array for model input
-        """
-        # Implementation depends on your specific model requirements
-        # This is a placeholder - you'll need to extract the relevant features
-        # based on your model training
-        
-        # Example: Extract numerical features and normalize
-        numeric_cols = [col for col in transaction.index 
-                       if pd.api.types.is_numeric_dtype(transaction[col])]
-        
-        # Skip any known non-feature columns
-        exclude_cols = ['id', 'transaction_id', 'date', 'timestamp']
-        feature_cols = [col for col in numeric_cols if col not in exclude_cols]
-        
-        return transaction[feature_cols].values
-    
-    def _add_to_flagged(self, transaction):
-        """Add a transaction to the flagged transactions list"""
-        transaction_df = pd.DataFrame([transaction])
-        self.flagged_transactions = pd.concat([self.flagged_transactions, transaction_df])
-    
-    def generate_weekly_report(self):
-        """
-        Generate the weekly audit report and reset flagged transactions.
-        
-        Returns:
-                Report dictionary with summary and details
-        """
-        report_date = datetime.now()
-        
-        # Skip if no flagged transactions
-        if self.flagged_transactions.empty:
-            report = {
-                'report_id': f"AR-{report_date.strftime('%Y%m%d')}",
-                'date': report_date,
-                'status': 'No anomalies detected',
-                'summary': 'No transactions were flagged during this period.',
-                'flagged_count': 0,
-                'details': None,
-                # Ensure 'insights' is an empty string when no anomalies are detected.
-                'insights': ''  
-            }
-        else:
-            # Generate insights using LLM
-            insights = self.llm_integration.generate_insights(self.flagged_transactions)
+            # Generate report
+            report_path = self.generate_report(
+                data=transactions,
+                start_date=start_date,
+                end_date=end_date
+            )
             
-            # Create report
-            report = {
-                'report_id': f"AR-{report_date.strftime('%Y%m%d')}",
-                'date': report_date,
-                'status': 'Anomalies detected',
-                'summary': f"Detected {len(self.flagged_transactions)} potentially fraudulent transactions.",
-                'flagged_count': len(self.flagged_transactions),
-                'details': self.flagged_transactions.copy(),
-                'insights': insights
-            }
-                
-            # Print notification
-            print(f"Audit report generated on {report_date.strftime('%Y-%m-%d %H:%M:%S')}")
-            print(f"Flagged {len(self.flagged_transactions)} transactions")
-        
-        # Store report
-        self.reports.append(report)
-        
-        # Reset flagged transactions for next period
-        self.flagged_transactions = pd.DataFrame()
-        
-        return report
-    
-    def _scheduler_job(self):
-        """Scheduler function that runs continuously to check for report day"""
-        while self.is_running:
-            schedule.run_pending()
-            time.sleep(60)  # Check every minute
+            # Flag high risk transactions
+            high_risk = transactions[transactions['risk_score'] >= 90]
+            flags = [
+                {
+                    'transaction_id': row['transaction_id'],
+                    'flag_type': 'High Risk',
+                    'comment': f"Flagged by weekly audit with risk score {row['risk_score']:.1f}"
+                }
+                for _, row in high_risk.iterrows()
+            ]
+            
+            flagged_transactions = self.report_generator.flag_transactions(transactions, flags)
+            
+            # Save flagged transactions
+            timestamp = datetime.now().strftime('%Y%m%d')
+            flagged_path = self.data_dir / f"flagged_transactions_{timestamp}.pkl"
+            flagged_transactions.to_pickle(flagged_path)
+            
+            print(f"Weekly audit completed. Flagged {len(flags)} high-risk transactions.")
+            print(f"Report generated at {report_path}")
+            
+        except Exception as e:
+            print(f"Error in weekly audit: {str(e)}")
     
     def start_monitoring(self):
-        """Start the autonomous monitoring and reporting"""
-        if self.is_running:
-            print("Monitoring is already active")
+        # Start the autonomous monitoring process
+        if self.running:
+            print("Monitoring is already running.")
             return
         
-        # Schedule weekly report generation
-        schedule.every().friday.at("17:00").do(self.generate_weekly_report)
+        self.running = True
+        
+        # Schedule weekly audit for Friday
+        schedule.every().friday.at("09:00").do(self._weekly_audit)
         
         # Start the scheduler in a separate thread
-        self.is_running = True
-        self.scheduler_thread = threading.Thread(target=self._scheduler_job)
-        self.scheduler_thread.daemon = True
-        self.scheduler_thread.start()
+        def run_scheduler():
+            while self.running:
+                schedule.run_pending()
+                time.sleep(60)  # Check every minute
         
-        print("Autonomous monitoring started. Reports will be generated every Friday at 5:00 PM.")
-    
+        self.schedule_thread = threading.Thread(target=run_scheduler)
+        self.schedule_thread.daemon = True
+        self.schedule_thread.start()
+        
+        print("Autonomous monitoring started.")
+        
     def stop_monitoring(self):
-        """Stop the autonomous monitoring"""
-        self.is_running = False
-        if self.scheduler_thread:
-            self.scheduler_thread.join(timeout=2)
-        schedule.clear()
+        # Stop the autonomous monitoring process
+        if not self.running:
+            print("Monitoring is not running.")
+            return
+        
+        self.running = False
+        if self.schedule_thread:
+            self.schedule_thread.join(timeout=5)
+        
         print("Autonomous monitoring stopped.")
-    
-    def get_latest_report(self):
-        """Get the most recent audit report"""
-        if not self.reports:
-            return None
-        return self.reports[-1]
-    
-    def get_all_reports(self):
-        """Get all historical audit reports"""
-        return self.reports
-    
-    def create_dashboard(self):
-        """
-        Create and display an interactive Streamlit dashboard
+
+    def run_manual_audit(self, start_date=None, end_date=None, audit_type="Comprehensive", department=None, risk_threshold=75, sample_size=100, rules=None):
+
+        if start_date is None:
+            start_date = datetime.now() - timedelta(days=30)
+        if end_date is None:
+            end_date = datetime.now()
         
-        This method should be called from a Streamlit app
-        """
-        st.title("Financial Transaction Audit Dashboard")
+        print(f"Running {audit_type} audit from {start_date} to {end_date}")
         
-        # Sidebar for filtering and controls
-        st.sidebar.header("Controls")
-        if st.sidebar.button("Generate Report Now"):
-            report = self.generate_weekly_report()
-            st.sidebar.success(f"Report generated: {report['report_id']}")
-        
-        # Report selection
-        st.header("Audit Reports")
-        if not self.reports:
-            st.info("No audit reports have been generated yet.")
+        # Process transactions
+        if self.processed_data is not None:
+            transactions = self.processed_data
+            print("Using existing processed data.")
         else:
-            report_options = [f"{r['report_id']} ({r['date'].strftime('%Y-%m-%d')})" for r in self.reports]
-            selected_report_idx = st.selectbox("Select a report:", range(len(report_options)), 
-                                             format_func=lambda x: report_options[x])
-            
-            report = self.reports[selected_report_idx]
-            
-            # Display report details
-            st.subheader(f"Report: {report['report_id']}")
-            st.write(f"Status: {report['status']}")
-            st.write(f"Date: {report['date'].strftime('%Y-%m-%d %H:%M:%S')}")
-            st.write(f"Summary: {report['summary']}")
-            
-            # Show insights
-            if report['insights']:
-                st.subheader("AI-Generated Insights")
-                st.write(report['insights'])
-            
-            # Display flagged transactions if any
-            if report['details'] is not None and not report['details'].empty:
-                st.subheader("Flagged Transactions")
-                st.dataframe(report['details'])
-                
-                # Add visualization of risk scores
-                st.subheader("Risk Score Distribution")
-                hist_values = np.histogram(report['details']['risk_score'], bins=10, range=(0, 1))[0]
-                st.bar_chart(pd.DataFrame(hist_values))
+            transactions = self.process_transactions(start_date=start_date, end_date=end_date, save_data=True)
+            print("Generating new processed data.")
         
-        # Real-time monitoring section
-        st.header("Real-time Monitoring")
-        st.write("Status: " + ("Active" if self.is_running else "Inactive"))
+        # Apply department filter if specified
+        if department and department != "All Departments":
+            if 'department' in transactions.columns:
+                transactions = transactions[transactions['department'] == department]
+                print(f"Filtered to {department} department: {len(transactions)} transactions")
         
-        # Display recent flagged transactions
-        if not self.flagged_transactions.empty:
-            st.subheader("Recently Flagged Transactions (Current Period)")
-            st.dataframe(self.flagged_transactions)
+        # Apply sample size
+        if sample_size < 100:
+            sample_count = int(len(transactions) * sample_size / 100)
+            transactions = transactions.sample(n=min(sample_count, len(transactions)))
+            print(f"Sampled {sample_size}% of transactions: {len(transactions)} transactions")
+        
+        # Apply rules if specified
+        flagged_transactions = pd.DataFrame()
+        if rules:
+            # Flag round number transactions
+            if rules.get('round_numbers'):
+                round_amount = transactions[transactions['amount'] % 100 == 0]
+                flagged_transactions = pd.concat([flagged_transactions, round_amount])
+            
+            # Flag transactions just below approval thresholds
+            if rules.get('below_threshold'):
+                # Assuming approval thresholds are at 1000, 5000, 10000
+                thresholds = [1000, 5000, 10000]
+                threshold_margin = 50  # Amount below threshold to flag
+                below_threshold = transactions[transactions['amount'].apply(
+                    lambda x: any(abs(x - t) < threshold_margin and x < t for t in thresholds)
+                )]
+                flagged_transactions = pd.concat([flagged_transactions, below_threshold])
+            
+            # Flag weekend/holiday transactions
+            if rules.get('weekend_holiday'):
+                if 'date' in transactions.columns:
+                    weekend_txns = transactions[transactions['date'].dt.dayofweek >= 5]
+                    flagged_transactions = pd.concat([flagged_transactions, weekend_txns])
+            
+            # Flag transactions without proper documentation
+            if rules.get('documentation'):
+                if 'documentation_complete' in transactions.columns:
+                    undocumented = transactions[transactions['documentation_complete'] == False]
+                    flagged_transactions = pd.concat([flagged_transactions, undocumented])
+            
+            # Apply custom rule if provided
+            if rules.get('custom'):
+                try:
+                    # Use safer eval approach
+                    custom_mask = transactions.eval(rules['custom'])
+                    custom_flagged = transactions[custom_mask]
+                    flagged_transactions = pd.concat([flagged_transactions, custom_flagged])
+                except Exception as e:
+                    print(f"Error applying custom rule: {str(e)}")
+        
+        # Flag high risk transactions based on risk_threshold
+        high_risk = transactions[transactions['risk_score'] >= risk_threshold]
+        flagged_transactions = pd.concat([flagged_transactions, high_risk])
+        
+        # Remove duplicates
+        flagged_transactions = flagged_transactions.drop_duplicates()
+        
+        # Generate report
+        report_path = self.generate_report(data=transactions, start_date=start_date, end_date=end_date)
+        
+        print(f"Manual audit completed. Report generated at {report_path}")
+        
+        return {
+            'total_transactions': len(transactions),
+            'flagged_transactions': flagged_transactions,
+            'total_risk_amount': flagged_transactions['amount'].sum() if 'amount' in flagged_transactions.columns else 0,
+            'audit_type': audit_type,
+            'department': department,
+            'risk_threshold': risk_threshold,
+            'sample_size': sample_size,
+            'findings': []  # Add basic findings structure
+        }
