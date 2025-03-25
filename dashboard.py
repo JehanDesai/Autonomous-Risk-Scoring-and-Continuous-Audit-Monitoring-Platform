@@ -15,12 +15,11 @@ from audit_generation import AuditReportGenerator
 from risk_scoring_model import RiskScoringModel
 
 class AuditDashboard:
-
     if "audit_config" not in st.session_state:
         st.session_state["audit_config"] = {}
     if "processed_data" not in st.session_state:
         st.session_state["processed_data"] = None
-    
+
     def __init__(self, audit_agent):
         self.audit_agent = audit_agent
         self.data_dir = Path("audit_data")
@@ -28,12 +27,7 @@ class AuditDashboard:
     
     def run(self):
         # Run the Streamlit dashboard
-        st.set_page_config(
-            page_title="Financial Audit Dashboard",
-            page_icon="🔍",
-            layout="wide"
-        )
-
+        st.set_page_config(page_title="Financial Audit Dashboard",page_icon="🔍",layout="wide")
         st.markdown(
             """
             <style>
@@ -141,15 +135,11 @@ class AuditDashboard:
             """,
             unsafe_allow_html=True
         )
-
         st.sidebar.image("logo-removebg-preview.png", use_container_width=True)  # Update path
-        
         st.title("Financial Audit Dashboard")
         st.sidebar.title("Controls")
-        
         # Sidebar controls
         action = st.sidebar.selectbox("Navigate", ["View Data", "Run Manual Audit", "View Reports", "Configure Monitoring"])
-        
         if action == "View Data":
             self._view_data_page()
         elif action == "Run Manual Audit":
@@ -257,7 +247,6 @@ class AuditDashboard:
                 plt.xticks(rotation=45, ha='right')
                 plt.tight_layout()
                 st.pyplot(fig)
-        
         with viz_tab3:
             time_data = filtered_data.copy()
             time_data['date'] = pd.to_datetime(time_data['date'])
@@ -272,8 +261,7 @@ class AuditDashboard:
             ax.set_ylabel('Total Amount ($)')
             plt.xticks(rotation=45)
             plt.tight_layout()
-            st.pyplot(fig)
-            
+            st.pyplot(fig)    
         # Export options
         st.subheader("Export Data")
         col1, col2 = st.columns(2)
