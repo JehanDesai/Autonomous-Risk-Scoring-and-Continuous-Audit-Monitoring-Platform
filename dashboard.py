@@ -30,7 +30,20 @@ class AuditDashboard:
         st.set_page_config(page_title="Financial Audit Dashboard",page_icon="🔍",layout="wide")
         st.markdown(
             """
+            <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
             <style>
+                .error-message {
+                    font-family: 'Material Icons', sans-serif;
+                    font-size: 20px;
+                    color: red;
+                    display: flex;
+                    align-items: center;
+                }
+                .error-icon {
+                    font-family: 'Material Icons';
+                    font-size: 24px;
+                    margin-right: 8px;
+                }
                 [data-testid="stSidebar"] {
                     background-color: #aceaff; /* Light Blue*/
                     padding: 20px;
@@ -41,23 +54,19 @@ class AuditDashboard:
                     # background-color: #0c233c; /* Dark blue */
                     color: black;
                 }
-
                 [data-testid="stSidebar"] h1 {
                     color: #1e48e2;
                     font-size: 26px;
                     font-weight: bold;
                 }
-
                 label[data-testid="stWidgetLabel"] {
                     color: white;
                     font-size: 16px;
                     font-weight: bold;
                 }
-
                 html, body, [class*="st-"] {
                     font-family: 'Arial', sans-serif;
                 }
-
                 div.stButton > button {
                     background-color: #1e48e2; 
                     color: white;
@@ -97,7 +106,6 @@ class AuditDashboard:
                     font-size: 30px;
                     font-weight: bold;
                 }
-
                 /* Style the select box container */
                 div[data-baseweb="select"] > div {
                     background: linear-gradient(to right, rgb(114, 19, 234), rgb(30, 73, 226)) !important; 
@@ -108,29 +116,30 @@ class AuditDashboard:
                     padding: 5px !important;
                     height: 50px;
                 }
-
                 /* Style the selected text inside select box */
                 div[data-baseweb="select"] span {
                     color: white !important;
                 }
-
                 /* Style the dropdown menu background */
                 div[data-testid="stSelectboxOptionsContainer"] {
                     background-color: rgb(30, 73, 226) !important; /* Blue dropdown */
                     border-radius: 8px !important;
                 }
-
                 /* Style the dropdown options text */
                 div[data-testid="stSelectboxOptionsContainer"] div {
                     color: white !important;
                     font-size: 14px !important;
                 }
-
                 /* Hover effect for dropdown options */
                 div[data-testid="stSelectboxOptionsContainer"] div:hover {
                     background: rgb(114, 19, 234);
                     color: white;
                 }
+                .stSlider label {
+                color: black !important;
+                font-size: 16px !important;
+                font-weight: bold !important;
+            }
             </style>
             """,
             unsafe_allow_html=True
@@ -533,6 +542,8 @@ class AuditDashboard:
             status_text = "Active" if current_status else "Inactive"
             status_color = "green" if current_status else "red"
             st.markdown(f"<h3 style='color: {status_color};'>● {status_text}</h3>", unsafe_allow_html=True)
+            if status_text == "Inactive":
+                st.info("ERP needs to be configured!", icon = "⚠️")
         with status_col2:
             st.write("")
             st.write("")
