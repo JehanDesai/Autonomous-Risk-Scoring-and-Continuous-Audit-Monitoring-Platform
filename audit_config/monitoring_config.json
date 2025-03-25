@@ -1,9 +1,9 @@
 {
   "schedule": {
-    "type": "Continuous",
-    "interval_minutes": 15,
-    "time_of_day": null,
-    "day_of_week": null,
+    "type": "Weekly",
+    "interval_minutes": null,
+    "time_of_day": "00:00",
+    "day_of_week": "Friday",
     "day_of_month": null
   },
   "triggers": {
@@ -23,7 +23,9 @@
       "enabled": true,
       "selected_patterns": [
         "Round Numbers",
-        "Split Transactions"
+        "Split Transactions",
+        "After Hours",
+        "Duplicate Transactions"
       ]
     }
   },
@@ -34,8 +36,7 @@
     ],
     "email": {
       "recipients": [
-        "auditor@company.com",
-        "finance@company.com"
+        "jehan.hemang.desai@gmail.com"
       ],
       "subject": "Audit Alert: Suspicious Transaction Detected"
     },

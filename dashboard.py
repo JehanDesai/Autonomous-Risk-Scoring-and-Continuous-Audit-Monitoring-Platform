@@ -33,13 +33,123 @@ class AuditDashboard:
             page_icon="🔍",
             layout="wide"
         )
+
+        st.markdown(
+            """
+            <style>
+                [data-testid="stSidebar"] {
+                    background-color: #aceaff; /* Light Blue*/
+                    padding: 20px;
+                    border-right: 2px solid #ddd;
+                }
+                [data-testid="stAppViewContainer"] {
+                    font-weight: bold;
+                    # background-color: #0c233c; /* Dark blue */
+                    color: black;
+                }
+
+                [data-testid="stSidebar"] h1 {
+                    color: #1e48e2;
+                    font-size: 26px;
+                    font-weight: bold;
+                }
+
+                label[data-testid="stWidgetLabel"] {
+                    color: white;
+                    font-size: 16px;
+                    font-weight: bold;
+                }
+
+                html, body, [class*="st-"] {
+                    font-family: 'Arial', sans-serif;
+                }
+
+                div.stButton > button {
+                    background-color: #1e48e2; 
+                    color: white;
+                    border-radius: 10px;
+                    padding: 10px 20px;
+                    font-size: 16px;
+                    font-weight: bold;
+                    transition: 0.3s;
+                }
+                div.stButton > button:hover {
+                    background-color: #00b8f5;
+                    color: white !important;
+                    border: 2px solid #45a049
+                }
+                div.stButton > button:active {
+                    background-color: #;
+                    transform: scale(0.98);
+                    border: 2px solid #45a049
+                }
+
+                div[data-testid="stMetric"] {
+                    background-color: #00348d;  /* Dark background */
+                    padding: 15px;
+                    border-radius: 10px;
+                    border: 2px solid #00b8f5;
+                    text-align: center;
+                }
+
+                div[data-testid="stMetric"] > label {
+                    color: white;
+                    font-size: 18px;
+                    font-weight: bold;
+                }
+
+                div[data-testid="stMetric"] > div {
+                    color: white;
+                    font-size: 30px;
+                    font-weight: bold;
+                }
+
+                /* Style the select box container */
+                div[data-baseweb="select"] > div {
+                    background: linear-gradient(to right, rgb(114, 19, 234), rgb(30, 73, 226)) !important; 
+                    border-radius: 8px !important;
+                    border: 2px solid white !important;
+                    color: white !important;
+                    font-size: 16px !important;
+                    padding: 5px !important;
+                    height: 50px;
+                }
+
+                /* Style the selected text inside select box */
+                div[data-baseweb="select"] span {
+                    color: white !important;
+                }
+
+                /* Style the dropdown menu background */
+                div[data-testid="stSelectboxOptionsContainer"] {
+                    background-color: rgb(30, 73, 226) !important; /* Blue dropdown */
+                    border-radius: 8px !important;
+                }
+
+                /* Style the dropdown options text */
+                div[data-testid="stSelectboxOptionsContainer"] div {
+                    color: white !important;
+                    font-size: 14px !important;
+                }
+
+                /* Hover effect for dropdown options */
+                div[data-testid="stSelectboxOptionsContainer"] div:hover {
+                    background: rgb(114, 19, 234);
+                    color: white;
+                }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.sidebar.image("logo-removebg-preview.png", use_container_width=True)  # Update path
         
         st.title("Financial Audit Dashboard")
         st.sidebar.title("Controls")
         
         # Sidebar controls
         action = st.sidebar.selectbox(
-            "Select Action",
+            "Navigate",
             ["View Data", "Run Manual Audit", "View Reports", "Configure Monitoring"]
         )
         
@@ -568,7 +678,7 @@ class AuditDashboard:
             st.write("")
             st.write("")
             if current_status:
-                if st.button("Stop Monitoring", type="primary"):
+                if st.button("Stop Monitoring"):
                     self.audit_agent.stop_monitoring()
                     st.success("Monitoring stopped successfully")
                     st.rerun()

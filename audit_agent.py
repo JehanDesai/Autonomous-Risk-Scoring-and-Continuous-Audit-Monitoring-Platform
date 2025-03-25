@@ -23,9 +23,7 @@ class AuditAgent:
         self.processed_data = None
         self.schedule_thread = None
         self.running = False
-        # self.report_dir = Path()
-        # self.report_dir.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
-    
+        
     def get_monitoring_status(self):
         """Return the current monitoring status."""
         return self.running

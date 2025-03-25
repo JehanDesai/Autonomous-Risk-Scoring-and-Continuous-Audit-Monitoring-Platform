@@ -169,3 +169,9 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+
+#ignore the unnecessary files
+logo-removebg-preview.png
+PS_20174392719_1491204439457_log.csv
+trial.csv
