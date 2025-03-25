@@ -3,19 +3,19 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from io import BytesIO
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
 from typing import Dict, List, Optional, Union, Tuple
-import json
-import requests
 import openai
 from pathlib import Path
 from google import genai
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class AuditReportGenerator:
     # Generates audit reports based on transaction data and risk scores.
     # Integrates with LLMs to provide narrative insights about anomalies.
-    
     def __init__(self, llm_provider: str = "google-gemini", api_key: Optional[str] = None, llm_config: Optional[Dict] = None):
         self.llm_provider = llm_provider
         self.api_key = api_key or os.environ.get(f"{llm_provider.upper()}_API_KEY", "")
@@ -85,7 +85,6 @@ class AuditReportGenerator:
     
     def _get_llm_insights(self, anomalies: pd.DataFrame) -> str:
         # Get narrative insights about anomalies using an LLM.
-        API_KEY = "AIzaSyCJmOb4wxHQ8gd5L1pWNgOIt0tXfqeW93U"
         # Prepare anomaly data for LLM prompt
         anomaly_summary = []
         for _, row in anomalies.iterrows():
@@ -145,7 +144,7 @@ class AuditReportGenerator:
                     asyncio.set_event_loop(loop)
                 
                 # Create Gemini client
-                client = genai.Client(api_key=API_KEY)
+                client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
                 
                 # For synchronous operation
                 response = client.models.generate_content(
